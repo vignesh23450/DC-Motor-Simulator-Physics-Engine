@@ -1,0 +1,1836 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DC Motor Simulator — Physics Engine</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;600;700&family=Rajdhani:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<style>
+  :root {
+    --bg-deep:    #f0f4f8;
+    --bg-panel:   #ffffff;
+    --bg-card:    #f8fafc;
+    --bg-input:   #f1f5f9;
+    --border:     #e2e8f0;
+    --border-glow:#93c5fd;
+    --accent:     #2563eb;
+    --accent2:    #ea580c;
+    --accent3:    #16a34a;
+    --accent4:    #7c3aed;
+    --warn:       #d97706;
+    --danger:     #dc2626;
+    --text-pri:   #1e293b;
+    --text-sec:   #64748b;
+    --text-dim:   #94a3b8;
+    --glow-cyan:  0 0 20px rgba(37,99,235,0.15);
+    --shadow-sm:  0 1px 3px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.05);
+    --shadow-md:  0 4px 6px rgba(0,0,0,0.07), 0 2px 4px rgba(0,0,0,0.05);
+    --shadow-lg:  0 10px 15px rgba(0,0,0,0.08), 0 4px 6px rgba(0,0,0,0.05);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg-deep);
+    color: var(--text-pri);
+    font-family: 'Rajdhani', sans-serif;
+    font-size: 14px;
+    overflow-x: hidden;
+    min-height: 100vh;
+  }
+
+  /* ─── HEADER ─── */
+  header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 0 24px;
+    height: 58px;
+    background: #ffffff;
+    border-bottom: 1px solid var(--border);
+    position: sticky; top: 0; z-index: 100;
+    box-shadow: var(--shadow-sm);
+  }
+
+  .header-logo {
+    display: flex; align-items: center; gap: 12px;
+  }
+
+  .logo-icon {
+    width: 34px; height: 34px;
+    background: conic-gradient(from 0deg, var(--accent), var(--accent2), var(--accent3), var(--accent));
+    border-radius: 50%;
+    animation: spinSlow 8s linear infinite;
+    box-shadow: 0 2px 8px rgba(37,99,235,0.3);
+  }
+
+  @keyframes spinSlow { to { transform: rotate(360deg); } }
+
+  .header-title {
+    font-family: 'Rajdhani', sans-serif;
+    font-weight: 700; font-size: 20px;
+    letter-spacing: 2px;
+    color: var(--text-pri);
+  }
+
+  .header-subtitle {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px; color: var(--text-dim);
+    letter-spacing: 2px; text-transform: uppercase;
+  }
+
+  .header-controls {
+    display: flex; gap: 8px; align-items: center;
+  }
+
+  .btn {
+    padding: 6px 16px;
+    font-family: 'Rajdhani', sans-serif;
+    font-weight: 600; font-size: 12px;
+    letter-spacing: 1px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.18s;
+    background: #ffffff;
+    color: var(--text-sec);
+    text-transform: uppercase;
+    box-shadow: var(--shadow-sm);
+  }
+  .btn:hover { background: var(--bg-card); }
+
+  .btn-primary { border-color: var(--accent); color: var(--accent); background: rgba(37,99,235,0.05); }
+  .btn-primary:hover { background: rgba(37,99,235,0.12); }
+  .btn-danger  { border-color: var(--danger); color: var(--danger); background: rgba(220,38,38,0.04); }
+  .btn-danger:hover { background: rgba(220,38,38,0.1); }
+  .btn-warn    { border-color: var(--warn);   color: var(--warn);   background: rgba(217,119,6,0.04); }
+  .btn-warn:hover { background: rgba(217,119,6,0.1); }
+  .btn-green   { border-color: var(--accent3);color: var(--accent3);background: rgba(22,163,74,0.05); }
+  .btn-green:hover { background: rgba(22,163,74,0.12); }
+
+  /* ─── MAIN LAYOUT: left | center, graphs below ─── */
+  .main-layout {
+    display: grid;
+    grid-template-columns: 300px 1fr;
+    grid-template-rows: 1fr 195px;
+    height: calc(100vh - 58px);
+    overflow: hidden;
+  }
+
+  /* ─── PANELS ─── */
+  .panel {
+    background: #ffffff;
+    border-right: 1px solid var(--border);
+    overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: var(--border) transparent;
+    grid-row: 1 / 3;
+  }
+  .panel::-webkit-scrollbar { width: 4px; }
+  .panel::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+  .panel-section {
+    padding: 14px 16px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .section-title {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin-bottom: 12px;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .section-title::before {
+    content: ''; width: 3px; height: 12px;
+    background: var(--accent);
+    border-radius: 2px;
+  }
+
+  /* ─── CONTROLS ─── */
+  .control-group { margin-bottom: 10px; }
+
+  .control-label {
+    display: flex; justify-content: space-between;
+    align-items: center;
+    margin-bottom: 4px;
+    font-size: 12px;
+    color: var(--text-sec);
+    font-weight: 500;
+  }
+
+  .control-label span.formula {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9px;
+    color: var(--text-dim);
+  }
+
+  .control-value {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    color: var(--accent);
+    font-weight: 600;
+    min-width: 55px; text-align: right;
+  }
+
+  .slider-wrap {
+    position: relative;
+    display: flex; align-items: center; gap: 8px;
+  }
+
+  input[type="range"] {
+    -webkit-appearance: none;
+    width: 100%; height: 4px;
+    background: var(--bg-input);
+    border-radius: 2px;
+    outline: none;
+    border: 1px solid var(--border);
+  }
+  input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 13px; height: 13px;
+    border-radius: 50%;
+    background: var(--accent);
+    box-shadow: 0 1px 4px rgba(37,99,235,0.5);
+    cursor: pointer;
+    transition: transform 0.15s;
+  }
+  input[type="range"]::-webkit-slider-thumb:hover { transform: scale(1.3); }
+
+  input[type="number"], select {
+    width: 100%;
+    background: var(--bg-input);
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    color: var(--text-pri);
+    padding: 5px 8px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    outline: none;
+    transition: border-color 0.2s, box-shadow 0.2s;
+  }
+  input[type="number"]:focus, select:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px rgba(37,99,235,0.1);
+  }
+  select option { background: #ffffff; color: var(--text-pri); }
+
+  .toggle-row {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 8px;
+  }
+  .toggle-label { font-size: 12px; color: var(--text-sec); }
+
+  .toggle {
+    position: relative; width: 36px; height: 18px;
+  }
+  .toggle input { opacity: 0; width: 0; height: 0; }
+  .toggle-track {
+    position: absolute; inset: 0;
+    background: var(--bg-input);
+    border: 1px solid var(--border);
+    border-radius: 9px;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .toggle input:checked ~ .toggle-track { background: rgba(37,99,235,0.15); border-color: var(--accent); }
+  .toggle-track::after {
+    content: '';
+    position: absolute; left: 2px; top: 2px;
+    width: 12px; height: 12px;
+    background: var(--text-dim);
+    border-radius: 50%;
+    transition: transform 0.2s, background 0.2s;
+  }
+  .toggle input:checked ~ .toggle-track::after {
+    transform: translateX(18px);
+    background: var(--accent);
+  }
+
+  /* ─── CENTER ─── */
+  .center-panel {
+    display: flex; flex-direction: column;
+    background: var(--bg-deep);
+    overflow-y: auto;
+    overflow-x: hidden;
+    grid-column: 2;
+    grid-row: 1;
+  }
+
+  /* Top row: 2D motor canvas + 3D model side by side */
+  .top-visuals {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    padding: 12px;
+    flex: 0 0 auto;
+  }
+
+  .visual-card {
+    background: #ffffff;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+    box-shadow: var(--shadow-sm);
+    overflow: hidden;
+  }
+
+  .visual-card-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--border);
+    background: var(--bg-card);
+  }
+  .visual-card-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9px; letter-spacing: 2px;
+    text-transform: uppercase; color: var(--text-dim);
+  }
+  .visual-card-body {
+    position: relative;
+    display: flex; align-items: center; justify-content: center;
+    background: #f8fafc;
+    height: 280px;
+    overflow: hidden;
+  }
+
+  .status-overlay {
+    position: absolute; top: 8px; left: 8px; right: 8px;
+    display: flex; gap: 6px; flex-wrap: wrap;
+    pointer-events: none;
+  }
+
+  .status-chip {
+    padding: 2px 8px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    border-radius: 4px;
+    border: 1px solid transparent;
+    letter-spacing: 1px;
+    opacity: 0;
+    transition: opacity 0.3s;
+  }
+  .status-chip.visible { opacity: 1; }
+  .chip-stall { border-color: var(--danger); color: var(--danger); background: rgba(220,38,38,0.08); }
+  .chip-warn  { border-color: var(--warn);   color: var(--warn);   background: rgba(217,119,6,0.08); }
+  .chip-run   { border-color: var(--accent3);color: var(--accent3);background: rgba(22,163,74,0.06); }
+
+  /* ─── GAUGES ─── */
+  .gauges-row {
+    display: grid; grid-template-columns: repeat(4, 1fr);
+    gap: 10px;
+    padding: 0 12px 10px;
+    flex: 0 0 auto;
+  }
+
+  .gauge-cell {
+    background: #ffffff;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    padding: 10px 12px;
+    display: flex; flex-direction: column; align-items: center;
+    box-shadow: var(--shadow-sm);
+  }
+
+  .gauge-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9px; letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    margin-bottom: 3px;
+  }
+
+  .gauge-value {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 17px; font-weight: 700;
+    transition: color 0.3s;
+  }
+
+  .gauge-unit {
+    font-size: 9px; color: var(--text-dim); margin-top: 1px;
+  }
+
+  /* ─── EFFICIENCY GAUGE + FORMULA ─── */
+  .eff-formula-row {
+    display: grid; grid-template-columns: 180px 1fr;
+    gap: 10px;
+    padding: 0 12px 10px;
+    flex: 0 0 auto;
+  }
+
+  .eff-card {
+    background: #ffffff;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    box-shadow: var(--shadow-sm);
+    display: flex; align-items: center; justify-content: center;
+    padding: 8px;
+  }
+
+  .formula-grid {
+    display: grid; grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+
+  /* ─── FORMULA BOX ─── */
+  .formula-box {
+    background: var(--bg-input);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 8px 10px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    color: var(--text-sec);
+    line-height: 1.8;
+  }
+  .formula-box .eq { color: var(--accent); }
+  .formula-box .var { color: var(--accent2); font-weight: 600; }
+
+  /* ─── GRAPHS PANEL (bottom landscape strip) ─── */
+  .graphs-panel {
+    background: #ffffff;
+    border-top: 1px solid var(--border);
+    grid-column: 2;
+    grid-row: 2;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: thin;
+    scrollbar-color: var(--border) transparent;
+    display: flex;
+    flex-direction: column;
+  }
+  .graphs-panel::-webkit-scrollbar { height: 4px; }
+  .graphs-panel::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+  .graphs-header {
+    display: flex; align-items: center; gap: 8px;
+    padding: 8px 14px 6px;
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+
+  .graphs-row {
+    display: flex;
+    flex: 1;
+    min-height: 0;
+  }
+
+  .graph-card {
+    padding: 8px 12px;
+    border-right: 1px solid var(--border);
+    flex: 1;
+    min-width: 180px;
+    display: flex;
+    flex-direction: column;
+  }
+  .graph-card:last-child { border-right: none; }
+
+  .graph-card-title {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9px; letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: var(--text-sec);
+    margin-bottom: 4px;
+    display: flex; justify-content: space-between;
+    flex-shrink: 0;
+  }
+
+  .graph-card canvas { display: block; flex: 1; min-height: 0; width: 100% !important; }
+
+  .graph-formula {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 8px;
+    color: var(--text-dim);
+    margin-bottom: 3px;
+    letter-spacing: 0.3px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    flex-shrink: 0;
+  }
+
+  /* ─── PRESETS ─── */
+  .preset-btns { display: flex; gap: 6px; flex-wrap: wrap; }
+  .preset-btn {
+    flex: 1; min-width: 75px;
+    padding: 5px 8px;
+    font-family: 'Rajdhani', sans-serif;
+    font-weight: 600; font-size: 12px;
+    letter-spacing: 0.5px;
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    background: var(--bg-input);
+    color: var(--text-sec);
+    cursor: pointer;
+    transition: all 0.18s;
+    text-align: center;
+  }
+  .preset-btn:hover { border-color: var(--accent2); color: var(--accent2); background: rgba(234,88,12,0.06); }
+
+  /* Live indicator dot */
+  .live-dot {
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    background: var(--accent3);
+    box-shadow: 0 0 6px var(--accent3);
+    animation: blink 1.2s ease infinite;
+    display: inline-block; vertical-align: middle; margin-right: 5px;
+  }
+  @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.3} }
+
+  /* Warning panel */
+  #warningPanel {
+    position: fixed; bottom: 20px; right: 20px;
+    max-width: 280px; z-index: 1000;
+    display: flex; flex-direction: column; gap: 6px;
+  }
+  .warn-toast {
+    background: #ffffff;
+    border: 1px solid var(--warn);
+    border-radius: 6px;
+    padding: 8px 12px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: var(--warn);
+    animation: slideIn 0.3s ease;
+    box-shadow: var(--shadow-md);
+  }
+  .warn-toast.danger { border-color: var(--danger); color: var(--danger); }
+  @keyframes slideIn { from{transform:translateX(20px);opacity:0} to{transform:translateX(0);opacity:1} }
+
+  /* 3D canvas */
+  #threeCanvas { width: 100%; height: 100%; display: block; }
+
+  /* Badge tags */
+  .badge {
+    display: inline-block;
+    padding: 1px 6px;
+    border-radius: 3px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9px;
+    font-weight: 600;
+  }
+  .badge-blue { background: rgba(37,99,235,0.1); color: var(--accent); }
+  .badge-green { background: rgba(22,163,74,0.1); color: var(--accent3); }
+
+  /* 3D controls hint */
+  .three-hint {
+    position: absolute; bottom: 8px; right: 8px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 8px; color: var(--text-dim);
+    letter-spacing: 1px;
+    pointer-events: none;
+  }
+
+  /* ─── CENTER panel: takes col 2, row 1 ─── */
+  .center-panel {
+    grid-column: 2;
+    grid-row: 1;
+  }
+
+  @media (max-width: 1200px) {
+    .main-layout { grid-template-columns: 260px 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ─── HEADER ─── -->
+<header>
+  <div class="header-logo">
+    <div class="logo-icon"></div>
+    <div>
+      <div class="header-title">DC MOTOR SIMULATOR</div>
+      <div class="header-subtitle">Physics Based</div>
+    </div>
+  </div>
+  <div class="header-controls">
+    <span class="live-dot" id="liveDot"></span>
+    <span id="simTimeDisplay" style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--text-dim)">t = 0.000 s</span>
+    <button class="btn btn-green"   id="btnPause">⏸ PAUSE</button>
+    <button class="btn btn-warn"    id="btnReset">↺ RESET</button>
+   
+  </div>
+</header>
+
+<!-- ─── MAIN ─── -->
+<div class="main-layout">
+
+  <!-- ═══════════════════════ LEFT PANEL ═══════════════════════ -->
+  <div class="panel" id="leftPanel">
+
+    <div class="panel-section">
+      <div class="section-title">Presets</div>
+      <div class="preset-btns">
+        <button class="preset-btn" onclick="applyPreset('small')">Small DC</button>
+        <button class="preset-btn" onclick="applyPreset('hightorque')">High Torque</button>
+        <button class="preset-btn" onclick="applyPreset('fan')">Fan Load</button>
+      </div>
+    </div>
+
+    <div class="panel-section">
+      <div class="section-title">Electrical</div>
+      <div class="formula-box" style="margin-bottom:10px">
+        <span class="eq">V = i·R + L·(di/dt) + Kₑ·ω</span><br>
+        <span class="var">V</span>=Voltage &nbsp;<span class="var">R</span>=Resistance &nbsp;<span class="var">L</span>=Inductance
+      </div>
+      <div id="electricalControls"></div>
+    </div>
+
+    <div class="panel-section">
+      <div class="section-title">Mechanical</div>
+      <div class="formula-box" style="margin-bottom:10px">
+        <span class="eq">J·(dω/dt) = Kₜ·i − Bᵥ·ω − T_L</span><br>
+        <span class="var">J</span>=Inertia &nbsp;<span class="var">Bᵥ</span>=Friction &nbsp;<span class="var">T_L</span>=Load
+      </div>
+      <div id="mechanicalControls"></div>
+    </div>
+
+    <div class="panel-section">
+      <div class="section-title">Coil &amp; Magnetic</div>
+      <div class="formula-box" style="margin-bottom:10px">
+        <span class="eq">F = B·i·ℓ</span> &nbsp; <span class="eq">τ = N·F·r</span><br>
+        <span class="var">Kₜ = N·B·ℓ·r</span> (derived)
+      </div>
+      <div id="magneticControls"></div>
+    </div>
+
+    <div class="panel-section">
+      <div class="section-title">Advanced</div>
+      <div id="advancedControls"></div>
+      <div style="margin-top:10px">
+        <div class="toggle-row">
+          <span class="toggle-label">Enable Inductance</span>
+          <label class="toggle"><input type="checkbox" id="togL" checked><span class="toggle-track"></span></label>
+        </div>
+        <div class="toggle-row">
+          <span class="toggle-label">Enable Friction</span>
+          <label class="toggle"><input type="checkbox" id="togFriction" checked><span class="toggle-track"></span></label>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel-section">
+      <div class="section-title">Wire Gauge (AWG)</div>
+      <div class="control-group">
+        <div class="control-label">
+          <span>AWG Gauge</span>
+          <span class="control-value" id="awgResDisp">–</span>
+        </div>
+        <select id="awgSelect" onchange="onAWGChange()">
+          <option value="20">AWG 20 — 0.0337 Ω/m</option>
+          <option value="22" selected>AWG 22 — 0.0536 Ω/m</option>
+          <option value="24">AWG 24 — 0.0854 Ω/m</option>
+          <option value="26">AWG 26 — 0.1328 Ω/m</option>
+          <option value="28">AWG 28 — 0.2128 Ω/m</option>
+          <option value="30">AWG 30 — 0.3386 Ω/m</option>
+        </select>
+        <div style="margin-top:6px; font-family:'JetBrains Mono',monospace; font-size:10px; color:var(--text-dim)" id="awgInfo">
+          ρ·(2πr·N) auto-applied to R
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ═══════════════════════ CENTER PANEL ═══════════════════════ -->
+  <div class="center-panel">
+
+    <!-- TOP ROW: 2D Motor + 3D Model -->
+    <div class="top-visuals">
+
+      <!-- 2D Motor Animation -->
+      <div class="visual-card">
+        <div class="visual-card-header">
+          <span class="visual-card-label">2D Motor Cross-Section</span>
+          <div style="display:flex;gap:6px">
+            <div class="status-chip chip-stall" id="chipStall">⚡ STALL</div>
+            <div class="status-chip chip-warn"  id="chipWarn">⚠ OVERLOAD</div>
+            <div class="status-chip chip-run"   id="chipRun">◉ RUNNING</div>
+          </div>
+        </div>
+        <div class="visual-card-body" style="background:#f0f4f8">
+          <canvas id="motorCanvas" width="520" height="268"></canvas>
+        </div>
+      </div>
+
+      <!-- 3D Interactive Model -->
+      <div class="visual-card">
+        <div class="visual-card-header">
+          <span class="visual-card-label">3D Interactive Model</span>
+          <span class="badge badge-blue">DRAG TO ROTATE</span>
+        </div>
+        <div class="visual-card-body" style="background:#e8eef6; cursor:grab">
+          <canvas id="threeCanvas"></canvas>
+          <div class="three-hint">SCROLL TO ZOOM · DRAG TO ROTATE</div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- GAUGES ROW 1 -->
+    <div class="gauges-row">
+      <div class="gauge-cell">
+        <div class="gauge-label">Speed</div>
+        <div class="gauge-value" id="gSpeed" style="color:var(--accent)">0.0</div>
+        <div class="gauge-unit">rad/s</div>
+      </div>
+      <div class="gauge-cell">
+        <div class="gauge-label">Current</div>
+        <div class="gauge-value" id="gCurrent" style="color:var(--accent2)">0.0</div>
+        <div class="gauge-unit">A</div>
+      </div>
+      <div class="gauge-cell">
+        <div class="gauge-label">Torque</div>
+        <div class="gauge-value" id="gTorque" style="color:var(--accent4)">0.0</div>
+        <div class="gauge-unit">N·m</div>
+      </div>
+      <div class="gauge-cell">
+        <div class="gauge-label">Output ω</div>
+        <div class="gauge-value" id="gOmegaOut" style="color:var(--accent3)">0.0</div>
+        <div class="gauge-unit">rad/s</div>
+      </div>
+    </div>
+
+    <!-- GAUGES ROW 2 -->
+    <div class="gauges-row">
+      <div class="gauge-cell">
+        <div class="gauge-label">P_in</div>
+        <div class="gauge-value" id="gPin" style="color:var(--warn)">0.0</div>
+        <div class="gauge-unit">W</div>
+      </div>
+      <div class="gauge-cell">
+        <div class="gauge-label">P_out</div>
+        <div class="gauge-value" id="gPout" style="color:var(--accent3)">0.0</div>
+        <div class="gauge-unit">W</div>
+      </div>
+      <div class="gauge-cell">
+        <div class="gauge-label">Cu Loss</div>
+        <div class="gauge-value" id="gCuLoss" style="color:var(--danger)">0.0</div>
+        <div class="gauge-unit">W</div>
+      </div>
+      <div class="gauge-cell">
+        <div class="gauge-label">Efficiency</div>
+        <div class="gauge-value" id="gEff" style="color:var(--accent3)">0.0</div>
+        <div class="gauge-unit">%</div>
+      </div>
+    </div>
+
+    <!-- EFFICIENCY ARC + FORMULA CARDS -->
+    <div class="eff-formula-row">
+      <div class="eff-card">
+        <canvas id="effGauge" width="160" height="100"></canvas>
+      </div>
+      <div class="formula-grid">
+        <div class="formula-box">
+          <span class="eq">Kₜ = Kₑ = </span><span id="ktDisplay" class="var">0.000</span> V·s/rad<br>
+          <span class="eq">τ = Kₜ·i = </span><span id="tauDisplay" class="var">0.000</span> N·m
+        </div>
+        <div class="formula-box">
+          <span class="eq">ω_out = ω/GR = </span><span id="omegaOutDisp" class="var">0.000</span><br>
+          <span class="eq">T_out = τ·GR = </span><span id="toutDisp" class="var">0.000</span>
+        </div>
+        <div class="formula-box">
+          <span class="eq">η = P_out / P_in</span><br>
+          <span class="eq">P_in = V·i</span>
+        </div>
+        <div class="formula-box">
+          <span class="eq">P_out = T_L·ω_out</span><br>
+          <span class="eq">Cu Loss = i²·R</span>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ═══════════════════════ BOTTOM GRAPHS STRIP ═══════════════════════ -->
+  <div class="graphs-panel">
+    <div class="graphs-header">
+      <div class="section-title" style="margin-bottom:0">Live Plots</div>
+      <span style="font-family:'JetBrains Mono',monospace;font-size:9px;color:var(--text-dim);letter-spacing:1px">REAL-TIME · LAST 200 SAMPLES</span>
+    </div>
+    <div class="graphs-row">
+      <div class="graph-card">
+        <div class="graph-card-title">
+          <span>ω — Speed</span><span style="color:var(--accent)">rad/s</span>
+        </div>
+        <div class="graph-formula">Y: ω(t) &nbsp;|&nbsp; <span style="color:var(--accent)">dω/dt = (Kₜ·i − Bᵥ·ω − T_L) / J</span></div>
+        <canvas id="chartSpeed"></canvas>
+      </div>
+      <div class="graph-card">
+        <div class="graph-card-title">
+          <span>i — Current</span><span style="color:var(--accent2)">A</span>
+        </div>
+        <div class="graph-formula">Y: i(t) &nbsp;|&nbsp; <span style="color:var(--accent2)">di/dt = (V − i·R − Kₑ·ω) / L</span></div>
+        <canvas id="chartCurrent"></canvas>
+      </div>
+      <div class="graph-card">
+        <div class="graph-card-title">
+          <span>τ — Torque</span><span style="color:var(--accent4)">N·m</span>
+        </div>
+        <div class="graph-formula">Y: τ(t) &nbsp;|&nbsp; <span style="color:var(--accent4)">τ = Kₜ · i</span></div>
+        <canvas id="chartTorque"></canvas>
+      </div>
+      <div class="graph-card">
+        <div class="graph-card-title">
+          <span>η — Efficiency</span><span style="color:var(--accent3)">%</span>
+        </div>
+        <div class="graph-formula">Y: η(t) &nbsp;|&nbsp; <span style="color:var(--accent3)">η = P_out / P_in × 100</span></div>
+        <canvas id="chartEff"></canvas>
+      </div>
+      <div class="graph-card">
+        <div class="graph-card-title">
+          <span>Power In/Out</span><span style="color:var(--warn)">W</span>
+        </div>
+        <div class="graph-formula">Y: P(t) &nbsp;|&nbsp; <span style="color:var(--warn)">P_in=V·i</span> &nbsp;<span style="color:var(--accent3)">P_out=T_L·ω_out</span></div>
+        <canvas id="chartPower"></canvas>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- Warning panel -->
+<div id="warningPanel"></div>
+
+<script>
+// ══════════════════════════════════════════════════════════
+// AWG TABLE
+// ══════════════════════════════════════════════════════════
+const AWG_TABLE = { 20:0.0337, 22:0.0536, 24:0.0854, 26:0.1328, 28:0.2128, 30:0.3386 };
+
+// ══════════════════════════════════════════════════════════
+// PARAMETER DEFINITIONS
+// ══════════════════════════════════════════════════════════
+const paramDefs = {
+  electrical: [
+    { id:'V',  label:'Voltage (V)',          unit:'V',     min:0,    max:48,   step:0.5,  def:12,   formula:'KVL' },
+    { id:'R',  label:'Resistance (R)',        unit:'Ω',     min:0.01, max:20,   step:0.05, def:1.5,  formula:'i²R' },
+    { id:'L',  label:'Inductance (L)',        unit:'mH',    min:0,    max:200,  step:1,    def:10,   formula:'L·di/dt', scale:1e-3 },
+    { id:'Ke', label:'Back EMF Const (Kₑ)',   unit:'V·s/r', min:0.001,max:1,   step:0.005,def:0.05, formula:'Kₜ=Kₑ' },
+  ],
+  mechanical: [
+    { id:'TL', label:'Load Torque (T_L)',     unit:'N·m',   min:0,    max:1,    step:0.005,def:0.02, formula:'steady' },
+    { id:'J',  label:'Inertia (J)',           unit:'kg·m²', min:1e-5, max:0.05, step:1e-4, def:5e-4, formula:'J·dω/dt' },
+    { id:'Bv', label:'Viscous Friction (Bᵥ)', unit:'N·m·s', min:0,    max:0.1,  step:0.001,def:0.005,formula:'Bᵥ·ω' },
+    { id:'GR', label:'Gear Ratio (GR)',       unit:'',      min:1,    max:20,   step:0.5,  def:1,    formula:'ω/GR' },
+  ],
+  magnetic: [
+    { id:'B',  label:'Flux Density (B)',      unit:'T',     min:0.01, max:2,    step:0.01, def:0.5,  formula:'F=Bil' },
+    { id:'N',  label:'Turns (N)',             unit:'',      min:1,    max:500,  step:1,    def:50,   formula:'τ=NFr' },
+    { id:'Lc', label:'Coil Length (ℓ)',       unit:'cm',    min:0.5,  max:20,   step:0.5,  def:5,    formula:'F=Bil', scale:0.01 },
+    { id:'r',  label:'Rotor Radius (r)',      unit:'cm',    min:0.5,  max:10,   step:0.1,  def:2,    formula:'τ=NFr', scale:0.01 },
+  ],
+  advanced: [
+    { id:'dt', label:'Time Step (ms)',        unit:'ms',    min:0.1,  max:10,   step:0.1,  def:1,    formula:'RK4', scale:1e-3 },
+    { id:'w0', label:'Initial Speed (ω₀)',    unit:'rad/s', min:0,    max:500,  step:1,    def:0,    formula:'IC' },
+  ]
+};
+
+// ══════════════════════════════════════════════════════════
+// STATE
+// ══════════════════════════════════════════════════════════
+let P = {};
+let simState = { omega: 0, current: 0, time: 0, angle: 0 };
+let simRunning = true;
+let audioCtx = null, gainNode = null, oscNode = null;
+const HIST = 200;
+
+// ══════════════════════════════════════════════════════════
+// BUILD CONTROLS
+// ══════════════════════════════════════════════════════════
+function buildControls(defs, containerId) {
+  const el = document.getElementById(containerId);
+  defs.forEach(d => {
+    const scale = d.scale || 1;
+    const dispVal = (P[d.id] !== undefined ? P[d.id] : d.def) / scale;
+    el.innerHTML += `
+    <div class="control-group">
+      <div class="control-label">
+        <span>${d.label} <span class="formula">[${d.formula}]</span></span>
+        <span class="control-value" id="val_${d.id}">${dispVal.toFixed(3)}</span>
+      </div>
+      <div class="slider-wrap">
+        <input type="range" id="sl_${d.id}"
+          min="${d.min/scale}" max="${d.max/scale}" step="${d.step/scale}"
+          value="${dispVal}"
+          oninput="onSlider('${d.id}',this.value,${scale},'${d.unit}')">
+        <input type="number" id="num_${d.id}"
+          style="width:65px;flex-shrink:0"
+          min="${d.min/scale}" max="${d.max/scale}" step="${d.step/scale}"
+          value="${dispVal}"
+          onchange="onNumber('${d.id}',this.value,${scale})">
+      </div>
+    </div>`;
+  });
+}
+
+function onSlider(id, val, scale) {
+  const v = parseFloat(val);
+  P[id] = v * scale;
+  document.getElementById('val_'+id).textContent = v.toFixed(3);
+  document.getElementById('num_'+id).value = v.toFixed(3);
+  if(id==='Ke') updateKt();
+  if(id==='GR') rebuild3DGears();
+  validate();
+}
+
+function onNumber(id, val, scale) {
+  const v = parseFloat(val);
+  if(isNaN(v)) return;
+  P[id] = v * scale;
+  document.getElementById('val_'+id).textContent = v.toFixed(3);
+  document.getElementById('sl_'+id).value = v;
+  if(id==='Ke') updateKt();
+  if(id==='GR') rebuild3DGears();
+  validate();
+}
+
+function updateKt() {
+  document.getElementById('ktDisplay').textContent = P.Ke.toFixed(4);
+}
+
+function onAWGChange() {
+  const awg = parseInt(document.getElementById('awgSelect').value);
+  const rho = AWG_TABLE[awg];
+  const wireLen = 2 * Math.PI * P.r * P.N;
+  const wireR = rho * wireLen;
+  document.getElementById('awgResDisp').textContent = wireR.toFixed(3)+' Ω';
+  document.getElementById('awgInfo').textContent =
+    `Wire length ≈ ${wireLen.toFixed(2)} m  →  R_wire = ${wireR.toFixed(3)} Ω`;
+}
+
+// ══════════════════════════════════════════════════════════
+// PHYSICS — RK4
+// ══════════════════════════════════════════════════════════
+function getKt() { return P.Ke; }
+
+function derivatives(omega, current) {
+  const Kt = getKt();
+  const L  = document.getElementById('togL').checked ? P.L : 1e-9;
+  const Bv = document.getElementById('togFriction').checked ? P.Bv : 0;
+  const backEMF = Kt * omega;
+  const diDt = (P.V - current * P.R - backEMF) / L;
+  const tau  = Kt * current;
+  const dwDt = (tau - Bv * omega - P.TL) / P.J;
+  return { diDt, dwDt, tau };
+}
+
+function rk4Step(omega, current, dt) {
+  const d1 = derivatives(omega, current);
+  const d2 = derivatives(omega + 0.5*dt*d1.dwDt, current + 0.5*dt*d1.diDt);
+  const d3 = derivatives(omega + 0.5*dt*d2.dwDt, current + 0.5*dt*d2.diDt);
+  const d4 = derivatives(omega + dt*d3.dwDt, current + dt*d3.diDt);
+  const newOmega   = omega   + (dt/6)*(d1.dwDt + 2*d2.dwDt + 2*d3.dwDt + d4.dwDt);
+  const newCurrent = current + (dt/6)*(d1.diDt + 2*d2.diDt + 2*d3.diDt + d4.diDt);
+  const tau = getKt() * newCurrent;
+  return { omega: Math.max(0, newOmega), current: Math.max(0, newCurrent), tau };
+}
+
+// ══════════════════════════════════════════════════════════
+// VALIDATION / WARNINGS
+// ══════════════════════════════════════════════════════════
+let warnTimers = {};
+function warn(key, msg, isDanger=false) {
+  if(warnTimers[key]) return;
+  const panel = document.getElementById('warningPanel');
+  const div = document.createElement('div');
+  div.className = 'warn-toast' + (isDanger ? ' danger' : '');
+  div.textContent = msg;
+  panel.appendChild(div);
+  warnTimers[key] = setTimeout(() => { div.remove(); delete warnTimers[key]; }, 3500);
+}
+
+function validate() {
+  if(P.R <= 0.01) warn('r','⚠ Resistance too low — risk of infinite current!', true);
+  if(P.V > 48)   warn('v','⚠ Voltage exceeds 48V — check motor rating');
+  if(P.TL > P.Ke * (P.V/P.R)) warn('tl','⚠ Load torque may cause stall at this voltage');
+}
+
+// ══════════════════════════════════════════════════════════
+// CHARTS (white theme)
+// ══════════════════════════════════════════════════════════
+const chartOpts = (color, label, yLabel) => ({
+  type: 'line',
+  data: { labels: [], datasets: [{ label, data: [], borderColor: color, borderWidth: 1.5,
+    pointRadius: 0, tension: 0.3, fill: true,
+    backgroundColor: color.replace(')', ',0.06)').replace('rgb','rgba') }] },
+  options: {
+    animation: false, responsive: true, maintainAspectRatio: false,
+    plugins: { legend: { display: false } },
+    scales: {
+      x: {
+        display: true,
+        ticks: {
+          color: '#94a3b8',
+          font: { size: 8, family: "'JetBrains Mono'" },
+          maxTicksLimit: 5,
+          maxRotation: 0,
+        },
+        grid:  { color: '#f1f5f9' },
+        border:{ color: '#e2e8f0' },
+        title: {
+          display: true,
+          text: 'Time (s)',
+          color: '#94a3b8',
+          font: { size: 8, family: "'JetBrains Mono'", style: 'normal' },
+          padding: { top: 2 }
+        }
+      },
+      y: {
+        ticks: { color: '#94a3b8', font: { size: 9, family: "'JetBrains Mono'" }, maxTicksLimit: 4 },
+        grid:  { color: '#f1f5f9' },
+        border:{ color: '#e2e8f0' },
+        title: {
+          display: true,
+          text: yLabel,
+          color: '#94a3b8',
+          font: { size: 8, family: "'JetBrains Mono'", style: 'normal' },
+          padding: { bottom: 2 }
+        }
+      }
+    }
+  }
+});
+
+const chartDefs = [
+  { id:'chartSpeed',   color:'rgb(37,99,235)',   label:'ω rad/s', yLabel:'ω (rad/s)' },
+  { id:'chartCurrent', color:'rgb(234,88,12)',   label:'i A',     yLabel:'i (A)' },
+  { id:'chartTorque',  color:'rgb(124,58,237)',  label:'τ N·m',   yLabel:'τ (N·m)' },
+  { id:'chartEff',     color:'rgb(22,163,74)',   label:'η %',     yLabel:'η (%)' },
+  { id:'chartPower',   color:'rgb(217,119,6)',   label:'P W',     yLabel:'P (W)' },
+];
+
+const charts = {};
+chartDefs.forEach(c => {
+  charts[c.id] = new Chart(document.getElementById(c.id), chartOpts(c.color, c.label, c.yLabel));
+});
+
+charts['chartPower'].data.datasets = [
+  { label:'P_in',  data:[], borderColor:'rgb(217,119,6)', borderWidth:1.5, pointRadius:0, tension:0.3, backgroundColor:'rgba(217,119,6,0.04)', fill:true },
+  { label:'P_out', data:[], borderColor:'rgb(22,163,74)',  borderWidth:1.5, pointRadius:0, tension:0.3, backgroundColor:'rgba(22,163,74,0.04)', fill:true }
+];
+// Add a mini legend for P_in / P_out since we have two lines
+charts['chartPower'].options.plugins.legend = {
+  display: true,
+  position: 'top',
+  labels: {
+    color: '#94a3b8',
+    font: { size: 8, family: "'JetBrains Mono'" },
+    boxWidth: 12,
+    padding: 4
+  }
+};
+charts['chartPower'].update();
+
+function pushChart(chart, x, ...ys) {
+  chart.data.labels.push(x.toFixed(2));
+  chart.data.datasets.forEach((ds, i) => ds.data.push(ys[i]));
+  if(chart.data.labels.length > HIST) {
+    chart.data.labels.shift();
+    chart.data.datasets.forEach(ds => ds.data.shift());
+  }
+  chart.update('none');
+}
+
+// ══════════════════════════════════════════════════════════
+// EFFICIENCY GAUGE (Arc) — white theme
+// ══════════════════════════════════════════════════════════
+const effCanvas = document.getElementById('effGauge');
+const effCtx = effCanvas.getContext('2d');
+
+function drawEffGauge(pct) {
+  const ctx = effCtx;
+  const W = effCanvas.width, H = effCanvas.height;
+  ctx.clearRect(0,0,W,H);
+  const cx = W/2, cy = H*0.88, r = H*0.72;
+  ctx.beginPath();
+  ctx.arc(cx, cy, r, Math.PI, 2*Math.PI);
+  ctx.lineWidth = 12;
+  ctx.strokeStyle = '#e2e8f0';
+  ctx.stroke();
+  const val = Math.min(pct/100, 1);
+  const fillEnd = Math.PI + val * Math.PI;
+  const color = val < 0.4 ? '#dc2626' : val < 0.7 ? '#d97706' : '#16a34a';
+  ctx.beginPath();
+  ctx.arc(cx, cy, r, Math.PI, fillEnd);
+  ctx.lineWidth = 12;
+  ctx.strokeStyle = color;
+  ctx.shadowColor = color; ctx.shadowBlur = 8;
+  ctx.stroke();
+  ctx.shadowBlur = 0;
+  ctx.fillStyle = color;
+  ctx.font = 'bold 19px "JetBrains Mono"';
+  ctx.textAlign = 'center';
+  ctx.fillText(pct.toFixed(1)+'%', cx, cy-10);
+  ctx.fillStyle = '#94a3b8';
+  ctx.font = '8px "JetBrains Mono"';
+  ctx.fillText('EFFICIENCY', cx, cy+3);
+}
+
+// ══════════════════════════════════════════════════════════
+// 2D MOTOR ANIMATION (light theme)
+// ══════════════════════════════════════════════════════════
+const mCanvas = document.getElementById('motorCanvas');
+const mCtx = mCanvas.getContext('2d');
+let motorAngle = 0;
+
+function drawMotor(omega, current, torque, efficiency) {
+  const ctx = mCtx;
+  const W = mCanvas.width, H = mCanvas.height;
+  ctx.clearRect(0,0,W,H);
+
+  const cuLoss = current*current*P.R;
+  const heatT = Math.min(cuLoss / 20, 1);
+  const heatR = Math.round(37 + heatT*218);
+  const heatG = Math.round(99 - heatT*65);
+  const heatB = Math.round(235 - heatT*235);
+
+  const cx = W/2 - 50, cy = H/2, motorR = 100;
+
+  // Subtle glow
+  const bgGrad = ctx.createRadialGradient(cx,cy,0,cx,cy,motorR*1.4);
+  bgGrad.addColorStop(0, `rgba(${heatR},${heatG},${heatB},0.06)`);
+  bgGrad.addColorStop(1, 'transparent');
+  ctx.fillStyle = bgGrad;
+  ctx.fillRect(0,0,W,H);
+
+  // Stator outer ring
+  ctx.beginPath();
+  ctx.arc(cx, cy, motorR, 0, Math.PI*2);
+  ctx.lineWidth = 16;
+  ctx.strokeStyle = '#cbd5e1';
+  ctx.stroke();
+
+  // Stator detail arcs
+  for(let k=0;k<8;k++){
+    const a = k*Math.PI/4;
+    ctx.beginPath();
+    ctx.arc(cx,cy,motorR,a+0.1,a+Math.PI/4-0.1);
+    ctx.lineWidth = 14;
+    ctx.strokeStyle = `hsl(215,20%,${78+k}%)`;
+    ctx.stroke();
+  }
+
+  // Outer ring highlight
+  ctx.beginPath();
+  ctx.arc(cx, cy, motorR, 0, Math.PI*2);
+  ctx.lineWidth = 1.5;
+  ctx.strokeStyle = 'rgba(37,99,235,0.2)';
+  ctx.stroke();
+
+  // Magnetic poles N-S
+  const poles = [0, Math.PI];
+  poles.forEach((angle, pi) => {
+    const px = cx + (motorR - 9) * Math.cos(angle);
+    const py = cy + (motorR - 9) * Math.sin(angle);
+    ctx.save();
+    ctx.translate(px, py);
+    ctx.rotate(angle + Math.PI/2);
+    ctx.shadowColor = pi===0 ? '#ef4444' : '#3b82f6';
+    ctx.shadowBlur  = 12 + 8*Math.sin(Date.now()*0.003);
+    ctx.fillStyle   = pi===0 ? '#ef4444' : '#3b82f6';
+    ctx.font = 'bold 13px "JetBrains Mono"';
+    ctx.textAlign = 'center';
+    ctx.fillText(pi===0 ? 'N' : 'S', 0, 5);
+    ctx.shadowBlur = 0;
+    ctx.restore();
+  });
+
+  // Field lines
+  const fieldAlpha = 0.25 + 0.15*Math.sin(Date.now()*0.002);
+  for(let k=0;k<6;k++){
+    const y = cy - 50 + k*20;
+    ctx.beginPath();
+    ctx.moveTo(cx-motorR+18, y);
+    ctx.lineTo(cx+motorR-18, y);
+    ctx.lineWidth = 1;
+    ctx.strokeStyle = `rgba(59,130,246,${fieldAlpha*(0.3+0.7*(k%2===0?1:0.5))})`;
+    ctx.setLineDash([5,7]);
+    ctx.stroke();
+    ctx.setLineDash([]);
+  }
+
+  // Rotor disc
+  const rotorR = motorR - 20;
+  const rotorGrad = ctx.createRadialGradient(cx,cy,0,cx,cy,rotorR);
+  rotorGrad.addColorStop(0,'#f0f4f8');
+  rotorGrad.addColorStop(1,'#dde4ed');
+  ctx.beginPath();
+  ctx.arc(cx,cy,rotorR,0,Math.PI*2);
+  ctx.fillStyle = rotorGrad;
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(37,99,235,0.12)';
+  ctx.lineWidth = 1; ctx.stroke();
+
+  // Coil windings
+  const numCoils = 3;
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.rotate(motorAngle);
+  for(let k=0;k<numCoils;k++){
+    const ca = k * (Math.PI*2/numCoils);
+    const coilLen = rotorR * 0.75;
+    ctx.save();
+    ctx.rotate(ca);
+    const coilW = 9;
+    ctx.beginPath();
+    ctx.rect(-coilW/2, -coilLen, coilW, coilLen*2);
+    const coilGrad = ctx.createLinearGradient(-coilW/2,0,coilW/2,0);
+    coilGrad.addColorStop(0,`rgba(37,99,235,${0.5+0.5*Math.sin(ca+motorAngle)})`);
+    coilGrad.addColorStop(1,`rgba(124,58,237,${0.5+0.5*Math.cos(ca+motorAngle)})`);
+    ctx.fillStyle = coilGrad;
+    ctx.shadowColor = '#2563eb';
+    ctx.shadowBlur  = 6;
+    ctx.fill();
+    ctx.shadowBlur  = 0;
+    ctx.strokeStyle = 'rgba(37,99,235,0.35)';
+    ctx.lineWidth = 1; ctx.stroke();
+    ctx.restore();
+  }
+
+  // Torque direction
+  const torqueAlpha = Math.min(Math.abs(torque)*3, 1);
+  if(omega > 0.5) {
+    const tr = rotorR * 0.5;
+    ctx.beginPath();
+    ctx.arc(0, 0, tr, -Math.PI/2, Math.PI/2);
+    ctx.lineWidth = 2.5;
+    ctx.strokeStyle = `rgba(124,58,237,${torqueAlpha})`;
+    ctx.shadowColor = '#7c3aed'; ctx.shadowBlur = 8;
+    ctx.stroke(); ctx.shadowBlur = 0;
+    const ax = tr*Math.cos(Math.PI/2), ay = tr*Math.sin(Math.PI/2);
+    ctx.beginPath();
+    ctx.moveTo(ax,ay); ctx.lineTo(ax-7,ay-10); ctx.lineTo(ax+7,ay-10);
+    ctx.closePath();
+    ctx.fillStyle = `rgba(124,58,237,${torqueAlpha})`;
+    ctx.fill();
+  }
+  ctx.restore();
+
+  // Shaft
+  ctx.save();
+  ctx.translate(cx,cy);
+  const shaftLen = 150;
+  const shaftGrad = ctx.createLinearGradient(-shaftLen/2,-4,-shaftLen/2,4);
+  shaftGrad.addColorStop(0,'#94a3b8'); shaftGrad.addColorStop(1,'#e2e8f0');
+  ctx.fillStyle = shaftGrad;
+  ctx.fillRect(-shaftLen/2, -3.5, shaftLen, 7);
+  for(let k=0;k<8;k++){
+    const mx = -shaftLen/2 + k*shaftLen/8;
+    ctx.fillStyle = 'rgba(37,99,235,0.25)';
+    ctx.fillRect(mx, -2.5, 1, 5);
+  }
+  ctx.restore();
+
+  // Bearings
+  [-1,1].forEach(side => {
+    const bx = cx + side*(motorR+11);
+    ctx.beginPath();
+    ctx.arc(bx,cy,7,0,Math.PI*2);
+    ctx.fillStyle = '#e2e8f0'; ctx.fill();
+    ctx.strokeStyle = '#93c5fd'; ctx.lineWidth=2; ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(bx,cy,2.5,0,Math.PI*2);
+    ctx.fillStyle = '#64748b'; ctx.fill();
+  });
+
+  // Gear if GR > 1
+  if(P.GR > 1.01) {
+    const gr1 = 20, gr2 = Math.round(gr1 * P.GR * 0.5);
+    drawGear(ctx, cx+motorR+24, cy, gr1, 8, '#dde4ed', '#2563eb', motorAngle);
+    drawGear(ctx, cx+motorR+24+gr1+gr2+4, cy, gr2, 12, '#e8eef6', '#7c3aed', -motorAngle/P.GR);
+    ctx.fillStyle = '#94a3b8';
+    ctx.fillRect(cx+motorR+24+gr1, cy-2, gr2+4, 4);
+  }
+
+  // Labels
+  ctx.fillStyle = 'rgba(37,99,235,0.5)';
+  ctx.font = '10px "JetBrains Mono"';
+  ctx.textAlign = 'center';
+  ctx.fillText('STATOR', cx, cy - motorR - 8);
+
+  // Stall overlay
+  if(omega < 0.5 && P.V > 0.1) {
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.globalAlpha = 0.5 + 0.3*Math.sin(Date.now()*0.005);
+    ctx.fillStyle = '#dc2626';
+    ctx.font = 'bold 15px "Rajdhani"';
+    ctx.textAlign = 'center';
+    ctx.fillText('STALL', 0, 4);
+    ctx.globalAlpha = 1;
+    ctx.restore();
+  }
+
+  // Info panel (right of canvas)
+  const px2 = W - 120, py2 = 28;
+  drawInfoPanel(ctx, px2, py2, omega, current, torque);
+}
+
+function drawGear(ctx, x, y, r, teeth, fill, stroke, angle) {
+  ctx.save();
+  ctx.translate(x,y);
+  ctx.rotate(angle);
+  ctx.beginPath();
+  for(let t=0;t<teeth;t++){
+    const a = (t/teeth)*Math.PI*2;
+    const a1 = a - 0.15, a2 = a + 0.15;
+    const ri = r*0.75, ro = r;
+    ctx.lineTo(ri*Math.cos(a1), ri*Math.sin(a1));
+    ctx.lineTo(ro*Math.cos(a1), ro*Math.sin(a1));
+    ctx.lineTo(ro*Math.cos(a2), ro*Math.sin(a2));
+    ctx.lineTo(ri*Math.cos(a2), ri*Math.sin(a2));
+  }
+  ctx.closePath();
+  ctx.fillStyle = fill; ctx.strokeStyle = stroke; ctx.lineWidth = 1;
+  ctx.fill(); ctx.stroke();
+  ctx.beginPath();
+  ctx.arc(0,0,r*0.3,0,Math.PI*2);
+  ctx.fillStyle = stroke; ctx.fill();
+  ctx.restore();
+}
+
+function drawInfoPanel(ctx, x, y, omega, current, torque) {
+  const lines = [
+    ['ω =', omega.toFixed(2)+' r/s', '#2563eb'],
+    ['i =', current.toFixed(3)+' A',  '#ea580c'],
+    ['τ =', torque.toFixed(4)+' Nm',  '#7c3aed'],
+    ['Kt=', P.Ke.toFixed(4)+' Vs/r', '#16a34a'],
+  ];
+  ctx.fillStyle = 'rgba(248,250,252,0.85)';
+  roundRect(ctx, x-4, y-14, 118, 80, 6);
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(37,99,235,0.2)';
+  ctx.lineWidth=1; roundRect(ctx, x-4, y-14, 118, 80, 6); ctx.stroke();
+  lines.forEach(([k,v,c],i)=>{
+    ctx.fillStyle='#94a3b8';
+    ctx.font='10px "JetBrains Mono"';
+    ctx.textAlign='left';
+    ctx.fillText(k, x, y+i*18);
+    ctx.fillStyle=c;
+    ctx.textAlign='right';
+    ctx.fillText(v, x+112, y+i*18);
+  });
+}
+
+function roundRect(ctx,x,y,w,h,r){
+  ctx.beginPath();
+  ctx.moveTo(x+r,y); ctx.lineTo(x+w-r,y);
+  ctx.arcTo(x+w,y,x+w,y+r,r);
+  ctx.lineTo(x+w,y+h-r);
+  ctx.arcTo(x+w,y+h,x+w-r,y+h,r);
+  ctx.lineTo(x+r,y+h);
+  ctx.arcTo(x,y+h,x,y+h-r,r);
+  ctx.lineTo(x,y+r);
+  ctx.arcTo(x,y,x+r,y,r);
+  ctx.closePath();
+}
+
+// ══════════════════════════════════════════════════════════
+// 3D MOTOR MODEL (Three.js)
+// ══════════════════════════════════════════════════════════
+let threeScene, threeCamera, threeRenderer;
+let motor3D = { rotor: null, shaft: null, coils: [], gears: [] };
+let isDragging = false, lastMouse = {x:0, y:0};
+let camTheta = 0.4, camPhi = 1.1, camRadius = 5;
+
+function init3D() {
+  const canvas = document.getElementById('threeCanvas');
+  const container = canvas.parentElement;
+  const W = container.clientWidth;
+  const H = container.clientHeight;
+
+  threeScene = new THREE.Scene();
+  threeScene.background = new THREE.Color(0xe8eef6);
+  threeScene.fog = new THREE.Fog(0xe8eef6, 12, 30);
+
+  threeCamera = new THREE.PerspectiveCamera(45, W/H, 0.1, 100);
+  threeCamera.position.set(
+    camRadius * Math.sin(camPhi) * Math.cos(camTheta),
+    camRadius * Math.cos(camPhi),
+    camRadius * Math.sin(camPhi) * Math.sin(camTheta)
+  );
+  threeCamera.lookAt(0,0,0);
+
+  threeRenderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+  threeRenderer.setSize(W, H);
+  threeRenderer.shadowMap.enabled = true;
+  threeRenderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+  // Lighting
+  const ambient = new THREE.AmbientLight(0xffffff, 0.7);
+  threeScene.add(ambient);
+
+  const dirLight = new THREE.DirectionalLight(0xffffff, 0.9);
+  dirLight.position.set(5, 8, 5);
+  dirLight.castShadow = true;
+  threeScene.add(dirLight);
+
+  const fillLight = new THREE.DirectionalLight(0xdbeafe, 0.4);
+  fillLight.position.set(-5, 2, -3);
+  threeScene.add(fillLight);
+
+  const pointLight = new THREE.PointLight(0x2563eb, 0.8, 8);
+  pointLight.position.set(0, 2, 2);
+  threeScene.add(pointLight);
+
+  // === STATOR (outer cylinder shell) ===
+  const statorMat = new THREE.MeshPhysicalMaterial({
+    color: 0xb0bec5,
+    metalness: 0.6,
+    roughness: 0.3,
+    transparent: true,
+    opacity: 0.35,
+    side: THREE.DoubleSide
+  });
+  const statorGeo = new THREE.CylinderGeometry(1.4, 1.4, 2.4, 48, 1, true);
+  const stator = new THREE.Mesh(statorGeo, statorMat);
+  threeScene.add(stator);
+
+  // Stator end caps (rings)
+  [-1.2, 1.2].forEach(yPos => {
+    const ringGeo = new THREE.TorusGeometry(1.4, 0.08, 16, 48);
+    const ringMat = new THREE.MeshPhysicalMaterial({ color: 0x90a4ae, metalness: 0.7, roughness: 0.2 });
+    const ring = new THREE.Mesh(ringGeo, ringMat);
+    ring.rotation.x = Math.PI/2;
+    ring.position.y = yPos;
+    threeScene.add(ring);
+  });
+
+  // Stator pole pieces (2 poles — N and S, opposite each other)
+  for(let i=0; i<2; i++){
+    const angle = (i/2)*Math.PI*2;
+    const poleGeo = new THREE.BoxGeometry(0.28, 2.0, 0.42);
+    const poleMat = new THREE.MeshPhysicalMaterial({
+      color: i===0 ? 0xef4444 : 0x3b82f6,
+      metalness: 0.3, roughness: 0.6,
+      emissive: i===0 ? 0x220000 : 0x000022,
+      emissiveIntensity: 0.3
+    });
+    const pole = new THREE.Mesh(poleGeo, poleMat);
+    pole.position.x = 1.25 * Math.cos(angle);
+    pole.position.z = 1.25 * Math.sin(angle);
+    // Label N/S
+    threeScene.add(pole);
+  }
+
+  // === ROTOR ===
+  const rotorGroup = new THREE.Group();
+  threeScene.add(rotorGroup);
+  motor3D.rotor = rotorGroup;
+
+  // Rotor core cylinder
+  const rotorCoreMat = new THREE.MeshPhysicalMaterial({ color: 0xdde4ed, metalness: 0.3, roughness: 0.5 });
+  const rotorCoreGeo = new THREE.CylinderGeometry(0.9, 0.9, 2.2, 32);
+  const rotorCore = new THREE.Mesh(rotorCoreGeo, rotorCoreMat);
+  rotorGroup.add(rotorCore);
+
+  // Coil windings on rotor
+  const coilColors = [0x2563eb, 0x7c3aed, 0xea580c];
+  for(let k=0; k<3; k++){
+    const angle = (k/3)*Math.PI*2;
+    const coilGroup = new THREE.Group();
+    coilGroup.rotation.y = angle;
+
+    const coilMat = new THREE.MeshPhysicalMaterial({
+      color: coilColors[k],
+      metalness: 0.1, roughness: 0.6,
+      emissive: coilColors[k],
+      emissiveIntensity: 0.15
+    });
+
+    // Main coil bar
+    const coilGeo = new THREE.BoxGeometry(0.14, 2.0, 0.18);
+    const coil = new THREE.Mesh(coilGeo, coilMat);
+    coil.position.x = 0.82;
+    coilGroup.add(coil);
+
+    // End turns (top/bottom arcs approximated as torus segments)
+    [-1.0, 1.0].forEach(yEnd => {
+      const endGeo = new THREE.TorusGeometry(0.35, 0.06, 8, 16, Math.PI);
+      const endMesh = new THREE.Mesh(endGeo, coilMat);
+      endMesh.position.set(0.55, yEnd, 0);
+      endMesh.rotation.y = Math.PI/2;
+      coilGroup.add(endMesh);
+    });
+
+    rotorGroup.add(coilGroup);
+    motor3D.coils.push(coilGroup);
+  }
+
+  // === SHAFT ===
+  const shaftMat = new THREE.MeshPhysicalMaterial({ color: 0x94a3b8, metalness: 0.8, roughness: 0.2 });
+  const shaftGeo = new THREE.CylinderGeometry(0.12, 0.12, 5.5, 20);
+  const shaft = new THREE.Mesh(shaftGeo, shaftMat);
+  rotorGroup.add(shaft);
+  motor3D.shaft = shaft;
+
+  // === COMMUTATOR ===
+  const commMat = new THREE.MeshPhysicalMaterial({ color: 0xd97706, metalness: 0.7, roughness: 0.3 });
+  const commGeo = new THREE.CylinderGeometry(0.22, 0.22, 0.4, 16);
+  const comm = new THREE.Mesh(commGeo, commMat);
+  comm.position.y = -1.4;
+  rotorGroup.add(comm);
+
+  // === BEARINGS ===
+  [-1.45, 1.45].forEach(yPos => {
+    const bearingMat = new THREE.MeshPhysicalMaterial({ color: 0x475569, metalness: 0.9, roughness: 0.15 });
+    const bearingGeo = new THREE.TorusGeometry(0.22, 0.1, 16, 32);
+    const bearing = new THREE.Mesh(bearingGeo, bearingMat);
+    bearing.rotation.x = Math.PI/2;
+    bearing.position.y = yPos;
+    threeScene.add(bearing);
+  });
+
+  // === GEAR GROUP (built/rebuilt when GR changes) ===
+  const gearGroup = new THREE.Group();
+  gearGroup.position.set(0, -1.55, 0); // sits below motor shaft end
+  threeScene.add(gearGroup);
+  motor3D.gearGroup = gearGroup;
+
+  // Grid floor
+  const gridHelper = new THREE.GridHelper(10, 20, 0xdde4ed, 0xe8eef6);
+  gridHelper.position.y = -2.5;
+  threeScene.add(gridHelper);
+
+  // Mouse controls
+  canvas.addEventListener('mousedown', e => { isDragging = true; lastMouse = {x: e.clientX, y: e.clientY}; canvas.style.cursor = 'grabbing'; });
+  window.addEventListener('mouseup',   () => { isDragging = false; canvas.style.cursor = 'grab'; });
+  window.addEventListener('mousemove', e => {
+    if(!isDragging) return;
+    const dx = e.clientX - lastMouse.x;
+    const dy = e.clientY - lastMouse.y;
+    camTheta += dx * 0.012;
+    camPhi   = Math.max(0.2, Math.min(Math.PI - 0.2, camPhi + dy * 0.012));
+    lastMouse = {x: e.clientX, y: e.clientY};
+    updateCam();
+  });
+  canvas.addEventListener('wheel', e => {
+    camRadius = Math.max(2, Math.min(12, camRadius + e.deltaY * 0.008));
+    updateCam();
+    e.preventDefault();
+  }, { passive: false });
+
+  // Touch controls
+  let lastTouchDist = 0, lastTouch = null;
+  canvas.addEventListener('touchstart', e => {
+    if(e.touches.length === 1) {
+      isDragging = true; lastMouse = {x: e.touches[0].clientX, y: e.touches[0].clientY};
+    } else if(e.touches.length === 2) {
+      lastTouchDist = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
+    }
+    e.preventDefault();
+  }, {passive:false});
+  canvas.addEventListener('touchend', () => { isDragging = false; });
+  canvas.addEventListener('touchmove', e => {
+    if(e.touches.length === 1 && isDragging) {
+      const dx = e.touches[0].clientX - lastMouse.x;
+      const dy = e.touches[0].clientY - lastMouse.y;
+      camTheta += dx * 0.012;
+      camPhi = Math.max(0.2, Math.min(Math.PI - 0.2, camPhi + dy * 0.012));
+      lastMouse = {x: e.touches[0].clientX, y: e.touches[0].clientY};
+      updateCam();
+    } else if(e.touches.length === 2) {
+      const dist = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
+      camRadius = Math.max(2, Math.min(12, camRadius - (dist - lastTouchDist) * 0.02));
+      lastTouchDist = dist;
+      updateCam();
+    }
+    e.preventDefault();
+  }, {passive:false});
+
+  // Resize observer
+  const ro = new ResizeObserver(() => {
+    const W2 = container.clientWidth, H2 = container.clientHeight;
+    threeRenderer.setSize(W2, H2);
+    threeCamera.aspect = W2/H2;
+    threeCamera.updateProjectionMatrix();
+  });
+  ro.observe(container);
+}
+
+function updateCam() {
+  threeCamera.position.set(
+    camRadius * Math.sin(camPhi) * Math.cos(camTheta),
+    camRadius * Math.cos(camPhi),
+    camRadius * Math.sin(camPhi) * Math.sin(camTheta)
+  );
+  threeCamera.lookAt(0,0,0);
+}
+
+// ── 3D GEAR BUILDER ──
+function make3DGearMesh(radius, teeth, height, color, emissiveColor) {
+  const shape = new THREE.Shape();
+  const innerR = radius * 0.72;
+  const outerR = radius;
+  const toothW = 0.18; // half-angle of tooth in radians
+  // Build tooth profile around full circle
+  for(let t = 0; t < teeth; t++) {
+    const baseAngle = (t / teeth) * Math.PI * 2;
+    const a0 = baseAngle - toothW;
+    const a1 = baseAngle - toothW * 0.4;
+    const a2 = baseAngle + toothW * 0.4;
+    const a3 = baseAngle + toothW;
+    if(t === 0) shape.moveTo(innerR * Math.cos(a0), innerR * Math.sin(a0));
+    else        shape.lineTo(innerR * Math.cos(a0), innerR * Math.sin(a0));
+    shape.lineTo(outerR * Math.cos(a1), outerR * Math.sin(a1));
+    shape.lineTo(outerR * Math.cos(a2), outerR * Math.sin(a2));
+    shape.lineTo(innerR * Math.cos(a3), innerR * Math.sin(a3));
+  }
+  shape.closePath();
+
+  // Hub hole
+  const hole = new THREE.Path();
+  const hubR = innerR * 0.35;
+  hole.absarc(0, 0, hubR, 0, Math.PI * 2, true);
+  shape.holes.push(hole);
+
+  const extrudeSettings = { depth: height, bevelEnabled: true, bevelThickness: 0.025, bevelSize: 0.015, bevelSegments: 2 };
+  const geo = new THREE.ExtrudeGeometry(shape, extrudeSettings);
+  geo.center();
+  // Rotate so flat face is perpendicular to Y axis (cylinder orientation)
+  geo.rotateX(Math.PI / 2);
+
+  const mat = new THREE.MeshPhysicalMaterial({
+    color, metalness: 0.65, roughness: 0.25,
+    emissive: emissiveColor, emissiveIntensity: 0.08
+  });
+  return new THREE.Mesh(geo, mat);
+}
+
+function rebuild3DGears() {
+  const grp = motor3D.gearGroup;
+  if(!grp) return;
+  // Clear previous
+  while(grp.children.length) grp.remove(grp.children[0]);
+  motor3D.gear1 = null;
+  motor3D.gear2 = null;
+
+  const GR = P ? (P.GR || 1) : 1;
+  if(GR <= 1.05) return; // No gear needed
+
+  // Gear 1 = motor-side (small driver)
+  const r1 = 0.42;
+  const teeth1 = 10;
+  const g1 = make3DGearMesh(r1, teeth1, 0.22, 0x2563eb, 0x1d4ed8);
+  g1.position.set(0, 0, 0);
+  grp.add(g1);
+  motor3D.gear1 = g1;
+
+  // Gear 2 = output (larger, driven) — radius scales with GR
+  const r2 = Math.min(r1 * GR * 0.55, 1.4);
+  const teeth2 = Math.round(teeth1 * GR * 0.55);
+  const g2 = make3DGearMesh(r2, Math.max(teeth2, 12), 0.22, 0x7c3aed, 0x5b21b6);
+  // Position output gear adjacent to drive gear
+  const spacing = r1 + r2 + 0.06;
+  g2.position.set(spacing, 0, 0);
+  grp.add(g2);
+  motor3D.gear2 = g2;
+
+  // Shaft connecting gear2 to output
+  const shaftMat2 = new THREE.MeshPhysicalMaterial({ color: 0x94a3b8, metalness: 0.8, roughness: 0.2 });
+  const shaftGeo2 = new THREE.CylinderGeometry(0.06, 0.06, 1.2, 12);
+  const shaft2 = new THREE.Mesh(shaftGeo2, shaftMat2);
+  shaft2.position.set(spacing, 0, 0);
+  grp.add(shaft2);
+
+  // Axis pin for gear1
+  const pin1 = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.05, 0.05, 1.2, 12),
+    shaftMat2
+  );
+  pin1.position.set(0, 0, 0);
+  grp.add(pin1);
+}
+
+function update3D(omega, current) {
+  if(!motor3D.rotor) return;
+
+  // Rotate rotor by simulation angle
+  motor3D.rotor.rotation.y = motorAngle;
+
+  // Rotate gears: gear1 matches motor (but about Y axis); gear2 counter-rotates / GR
+  if(motor3D.gear1) motor3D.gear1.rotation.y =  motorAngle;
+  if(motor3D.gear2) motor3D.gear2.rotation.y = -motorAngle / (P.GR || 1);
+
+  // Coil emissive glow based on current
+  const glowIntensity = Math.min(current / 10, 1) * 0.4;
+  motor3D.coils.forEach(c => {
+    c.children.forEach(mesh => {
+      if(mesh.material && mesh.material.emissiveIntensity !== undefined) {
+        mesh.material.emissiveIntensity = 0.1 + glowIntensity;
+      }
+    });
+  });
+
+  threeRenderer.render(threeScene, threeCamera);
+}
+
+// ══════════════════════════════════════════════════════════
+// ══════════════════════════════════════════════════════════
+// STATUS CHIPS
+// ══════════════════════════════════════════════════════════
+function updateChips(omega, pinW, poutW) {
+  const stall    = omega < 0.5 && P.V > 0.1;
+  const overload = pinW > 0 && poutW > pinW * 1.01;
+  const running  = omega > 0.5;
+
+  document.getElementById('chipStall').classList.toggle('visible', stall);
+  document.getElementById('chipWarn') .classList.toggle('visible', overload);
+  document.getElementById('chipRun')  .classList.toggle('visible', running);
+  document.getElementById('liveDot')  .style.animationPlayState = running ? 'running' : 'paused';
+  document.getElementById('liveDot')  .style.background = stall ? 'var(--danger)' : running ? 'var(--accent3)' : 'var(--text-dim)';
+}
+
+// ══════════════════════════════════════════════════════════
+// MAIN SIMULATION LOOP
+// ══════════════════════════════════════════════════════════
+let lastFrameTime = 0, simAccum = 0;
+
+function simLoop(ts) {
+  if(!simRunning) { requestAnimationFrame(simLoop); return; }
+
+  const wallDt = Math.min((ts - lastFrameTime)*0.001, 0.05);
+  lastFrameTime = ts;
+  simAccum += wallDt;
+
+  const dt = P.dt;
+  const stepsPerFrame = Math.min(Math.floor(simAccum/dt), 20);
+  simAccum -= stepsPerFrame * dt;
+
+  for(let s=0;s<stepsPerFrame;s++){
+    const res = rk4Step(simState.omega, simState.current, dt);
+    simState.omega   = res.omega;
+    simState.current = res.current;
+    simState.time   += dt;
+    simState.angle  += res.omega * dt;
+    motorAngle       = simState.angle;
+  }
+
+  const omega   = simState.omega;
+  const current = simState.current;
+  const tau     = getKt() * current;
+  const GR      = P.GR;
+  const omegaOut = omega / GR;
+  const tOut    = tau * GR;
+  const pin     = P.V * current;
+  const pout    = P.TL * omegaOut;
+  const cuLoss  = current*current*P.R;
+  const eff     = pin > 0.01 ? Math.min(pout/pin*100, 100) : 0;
+
+  const omegaSafe = isFinite(omega)   ? omega   : 0;
+  const iSafe     = isFinite(current) ? current : 0;
+  const tauSafe   = isFinite(tau)     ? tau     : 0;
+  const effSafe   = isFinite(eff)     ? eff     : 0;
+
+  // Update gauges
+  document.getElementById('gSpeed')   .textContent = omegaSafe.toFixed(2);
+  document.getElementById('gCurrent') .textContent = iSafe.toFixed(3);
+  document.getElementById('gTorque')  .textContent = tauSafe.toFixed(4);
+  document.getElementById('gOmegaOut').textContent = omegaOut.toFixed(2);
+  document.getElementById('gPin')     .textContent = pin.toFixed(2);
+  document.getElementById('gPout')    .textContent = pout.toFixed(2);
+  document.getElementById('gCuLoss')  .textContent = cuLoss.toFixed(2);
+  document.getElementById('gEff')     .textContent = effSafe.toFixed(1);
+
+  document.getElementById('ktDisplay')   .textContent = P.Ke.toFixed(4);
+  document.getElementById('tauDisplay')  .textContent = tauSafe.toFixed(4);
+  document.getElementById('omegaOutDisp').textContent = omegaOut.toFixed(3);
+  document.getElementById('toutDisp')    .textContent = tOut.toFixed(4);
+
+  const effColor = effSafe < 30 ? 'var(--danger)' : effSafe < 60 ? 'var(--warn)' : 'var(--accent3)';
+  document.getElementById('gEff').style.color = effColor;
+
+  document.getElementById('simTimeDisplay').textContent = `t = ${simState.time.toFixed(3)} s`;
+
+  if(stepsPerFrame > 0) {
+    const t = simState.time;
+    pushChart(charts['chartSpeed'],   t, omegaSafe);
+    pushChart(charts['chartCurrent'], t, iSafe);
+    pushChart(charts['chartTorque'],  t, tauSafe);
+    pushChart(charts['chartEff'],     t, effSafe);
+    pushChart(charts['chartPower'],   t, pin, pout);
+  }
+
+  drawMotor(omegaSafe, iSafe, tauSafe, effSafe);
+  drawEffGauge(effSafe);
+  update3D(omegaSafe, iSafe);
+  updateChips(omegaSafe, pin, pout);
+  onAWGChange();
+
+  requestAnimationFrame(simLoop);
+}
+
+// ══════════════════════════════════════════════════════════
+// PRESETS
+// ══════════════════════════════════════════════════════════
+const PRESETS = {
+  small:      { V:12, R:1.5, L:0.01, Ke:0.05, TL:0.02, J:5e-4, Bv:0.005, GR:1,  B:0.5, N:50,  Lc:0.05, r:0.02, dt:0.001, w0:0 },
+  hightorque: { V:24, R:0.8, L:0.05, Ke:0.12, TL:0.15, J:0.005,Bv:0.01,  GR:5,  B:1.2, N:200, Lc:0.08, r:0.04, dt:0.001, w0:0 },
+  fan:        { V:18, R:2.0, L:0.008,Ke:0.06, TL:0.01, J:1e-3, Bv:0.02,  GR:1,  B:0.6, N:80,  Lc:0.06, r:0.025,dt:0.001, w0:0 }
+};
+
+function applyPreset(name) {
+  const pr = PRESETS[name];
+  Object.assign(P, pr);
+  [...paramDefs.electrical,...paramDefs.mechanical,...paramDefs.magnetic,...paramDefs.advanced]
+    .forEach(d => {
+      const scale = d.scale || 1;
+      const v = P[d.id] / scale;
+      const sl  = document.getElementById('sl_'+d.id);
+      const num = document.getElementById('num_'+d.id);
+      const val = document.getElementById('val_'+d.id);
+      if(sl)  sl.value  = v;
+      if(num) num.value = v.toFixed(3);
+      if(val) val.textContent = v.toFixed(3);
+    });
+  resetSim();
+}
+
+function resetSim() {
+  simState.omega = P.w0 || 0;
+  simState.current = 0;
+  simState.time = 0;
+  simState.angle = 0;
+  motorAngle = 0;
+  Object.values(charts).forEach(c => {
+    c.data.labels = [];
+    c.data.datasets.forEach(ds => ds.data=[]);
+    c.update('none');
+  });
+}
+
+// ══════════════════════════════════════════════════════════
+// INIT
+// ══════════════════════════════════════════════════════════
+function init() {
+  [...paramDefs.electrical,...paramDefs.mechanical,...paramDefs.magnetic,...paramDefs.advanced]
+    .forEach(d => { P[d.id] = d.def; });
+
+  buildControls(paramDefs.electrical, 'electricalControls');
+  buildControls(paramDefs.mechanical, 'mechanicalControls');
+  buildControls(paramDefs.magnetic,   'magneticControls');
+  buildControls(paramDefs.advanced,   'advancedControls');
+
+  simState.omega = P.w0; simState.current = 0; simState.time = 0;
+
+  document.getElementById('btnPause').onclick = () => {
+    simRunning = !simRunning;
+    document.getElementById('btnPause').textContent = simRunning ? '⏸ PAUSE' : '▶ RESUME';
+    document.getElementById('btnPause').className   = simRunning ? 'btn btn-green' : 'btn btn-primary';
+  };
+  document.getElementById('btnReset').onclick = resetSim;
+
+  onAWGChange();
+  init3D();
+  rebuild3DGears();
+  lastFrameTime = performance.now();
+  requestAnimationFrame(simLoop);
+}
+
+init();
+</script>
+</body>
+</html>
